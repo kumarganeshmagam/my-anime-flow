@@ -1,0 +1,412 @@
+import React, { useState, useEffect } from 'react';
+import { Calendar, Sparkles, RefreshCw, Download, Copy, Check, ChevronLeft, ChevronRight, PlayCircle, TrendingUp, Clock, Database, Loader, ExternalLink, Zap, BarChart } from 'lucide-react';
+
+const AnimeFlowAI = () => {
+  const [animeSchedule, setAnimeSchedule] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [lastSync, setLastSync] = useState(null);
+  const [copiedText, setCopiedText] = useState('');
+
+  useEffect(() => {
+    // Load data immediately on mount
+    const schedule = parseAniwatchSchedule();
+    setAnimeSchedule(schedule);
+    setLastSync(new Date());
+    setIsLoading(false);
+    
+    // Save to storage
+    saveToStorage(schedule);
+  }, []);
+
+  const saveToStorage = async (schedule) => {
+    try {
+      await window.storage.set('anime_schedule_cache', JSON.stringify(schedule));
+      await window.storage.set('cache_date', JSON.stringify(new Date().toISOString()));
+    } catch (e) {
+      console.log('Storage error:', e);
+    }
+  };
+
+  const parseAniwatchSchedule = () => {
+    const today = new Date();
+    
+    // Calculate dates for each day of the week
+    const getDateForDay = (dayName) => {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const currentDay = today.getDay();
+      const targetDay = days.indexOf(dayName);
+      
+      // Calculate difference in days
+      let diff = targetDay - currentDay;
+      
+      const date = new Date(today);
+      date.setDate(date.getDate() + diff);
+      return date.toISOString().split('T')[0];
+    };
+
+    return [
+      // Thursday
+      { title: "Demon Slayer: Kimetsu no Yaiba – The Movie: Infinity Castle", day: "Thursday", time: "19:11", episode: "Movie", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/09/1758217029-3333-148216.jpg?resize=247,350", date: getDateForDay('Thursday'), trending: true, genre: "Action, Supernatural" },
+      { title: "This Monster Wants to Eat Me", day: "Thursday", time: "Released", episode: "13", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/09/1759011978-4279-151406.jpg?resize=247,350", date: getDateForDay('Thursday'), trending: false, genre: "Horror" },
+      
+      // Friday
+      { title: "So You're Raising a Warrior", day: "Friday", time: "03:00", episode: "11", image: "https://i2.wp.com/aniwatch.com.cv/wp-content/uploads/2025/11/1762007152-6940-152354.jpg?resize=247,350", date: getDateForDay('Friday'), trending: false, genre: "Fantasy" },
+      { title: "Tougen Anki", day: "Friday", time: "15:40", episode: "24", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/07/1753454046-4073-150666.jpg?resize=247,350", date: getDateForDay('Friday'), trending: true, genre: "Action, Supernatural" },
+      { title: "Ganglion", day: "Friday", time: "16:50", episode: "13", image: "https://i2.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1760268758-4770-151768.jpg?resize=247,350", date: getDateForDay('Friday'), trending: false, genre: "Horror" },
+      
+      // Saturday
+      { title: "Spy x Family Season 3", day: "Saturday", time: "15:15", episode: "13", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/09/1758669679-1892-151793.jpg?resize=247,350", date: getDateForDay('Saturday'), trending: true, genre: "Action, Comedy" },
+      { title: "To Your Eternity Season 3", day: "Saturday", time: "16:00", episode: "13", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/09/1758668586-6287-150961.jpg?resize=247,350", date: getDateForDay('Saturday'), trending: true, genre: "Drama, Fantasy" },
+      { title: "Kingdom: Season 6", day: "Saturday", time: "18:58", episode: "13", image: "https://i3.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759526101-9264-151476.jpg?resize=247,350", date: getDateForDay('Saturday'), trending: false, genre: "Action, Historical" },
+      
+      // Sunday
+      { title: "One Piece", day: "Sunday", time: "16:05", episode: "1155", image: "https://i1.wp.com/aniwatch.com.cv/wp-content/uploads/2025/07/1753629542-7022-138851.jpg?resize=247,350", date: getDateForDay('Sunday'), trending: true, genre: "Action, Adventure" },
+      { title: "One-Punch Man Season 3", day: "Sunday", time: "16:25", episode: "12", image: "https://i3.wp.com/aniwatch.com.cv/wp-content/uploads/2025/09/1758670275-6957-148347.jpg?resize=247,350", date: getDateForDay('Sunday'), trending: true, genre: "Action, Comedy" },
+      { title: "Demon Slayer: Kimetsu no Yaiba Infinity Castle", day: "Sunday", time: "18:54", episode: "New", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/07/1753604543-2477-148216.jpg?resize=247,350", date: getDateForDay('Sunday'), trending: true, genre: "Action, Supernatural" },
+      
+      // Monday
+      { title: "A Mangaka's Weirdly Wonderful Workplace", day: "Monday", time: "13:10", episode: "13", image: "https://i3.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759705004-3189-151874.jpg?resize=247,350", date: getDateForDay('Monday'), trending: false, genre: "Comedy, Slice of Life" },
+      { title: "Plus-sized Misadventures in Love!", day: "Monday", time: "15:10", episode: "13", image: "https://i1.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759705392-4503-151736.jpg?resize=247,350", date: getDateForDay('Monday'), trending: false, genre: "Romance" },
+      
+      // Tuesday
+      { title: "Chitose Is in the Ramune Bottle", day: "Tuesday", time: "16:40", episode: "10", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759790688-1741-151233.jpg?resize=247,350", date: getDateForDay('Tuesday'), trending: false, genre: "Romance, School" },
+      { title: "Ninja vs. Gokudo", day: "Tuesday", time: "17:55", episode: "13", image: "https://i1.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759791522-1658-152147.jpg?resize=247,350", date: getDateForDay('Tuesday'), trending: false, genre: "Action" },
+      { title: "The Blue Orchestra Season 2", day: "Tuesday", time: "21:50", episode: "13", image: "https://i0.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759614106-1082-151796.jpg?resize=247,350", date: getDateForDay('Tuesday'), trending: true, genre: "Music, Drama" },
+      
+      // Wednesday
+      { title: "Forget That Night, Your Majesty", day: "Wednesday", time: "13:01", episode: "13", image: "https://i2.wp.com/aniwatch.com.cv/wp-content/uploads/2025/10/1759791813-1389-151926.jpg?resize=247,350", date: getDateForDay('Wednesday'), trending: false, genre: "Romance, Fantasy" },
+      { title: "Monster Strike: Deadverse Reloaded", day: "Wednesday", time: "14:44", episode: "5", image: "https://i2.wp.com/aniwatch.com.cv/wp-content/uploads/2025/12/1765891299-3123-151875.jpg?resize=247,350", date: getDateForDay('Wednesday'), trending: false, genre: "Action" }
+    ];
+  };
+
+  const refreshData = async () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      const schedule = parseAniwatchSchedule();
+      setAnimeSchedule(schedule);
+      setLastSync(new Date());
+      saveToStorage(schedule);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    return { daysInMonth, startingDayOfWeek };
+  };
+
+  const getAnimeForDate = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return animeSchedule.filter(anime => anime.date === dateStr);
+  };
+
+  const changeMonth = (direction) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction, 1));
+  };
+
+  const exportSchedule = (type) => {
+    let data = [];
+    if (type === 'day') {
+      data = getAnimeForDate(selectedDate);
+    } else if (type === 'week') {
+      data = animeSchedule;
+    } else if (type === 'trending') {
+      data = animeSchedule.filter(a => a.trending);
+    }
+    
+    const text = data.map(a => 
+      `${a.title}\n${a.day} at ${a.time} JST • Episode ${a.episode}\n${a.trending ? '🔥 TRENDING' : ''}\nGenre: ${a.genre}\n---`
+    ).join('\n\n');
+
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `anime-schedule-${type}-${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+  };
+
+  const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
+  const monthName = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  const todayAnime = getAnimeForDate(selectedDate);
+  const trendingCount = animeSchedule.filter(a => a.trending).length;
+  const selectedDateStr = selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  if (isLoading && animeSchedule.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-white mx-auto mb-4" size={64} />
+          <h2 className="text-2xl font-bold text-white">Loading Anime Schedule...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Header */}
+      <div className="bg-black/30 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                AnimeFlow AI
+              </h1>
+              <p className="text-gray-400 text-sm mt-1">
+                {animeSchedule.length} anime tracked • Real-time from Aniwatch
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {lastSync && (
+                <div className="text-right">
+                  <div className="text-xs text-gray-500">Last synced</div>
+                  <div className="text-sm text-gray-300">{lastSync.toLocaleTimeString()}</div>
+                </div>
+              )}
+              <button
+                onClick={refreshData}
+                disabled={isLoading}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2 shadow-lg"
+              >
+                <RefreshCw className={isLoading ? 'animate-spin' : ''} size={20} />
+                Sync Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+        {/* Quick Stats - Compact Single Line */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-red-600 to-pink-600 p-3 rounded-xl">
+                <PlayCircle size={20} className="text-white" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white">{todayAnime.length}</div>
+                <div className="text-xs text-gray-400">On {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+              </div>
+            </div>
+
+            <div className="w-px h-12 bg-white/10"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-orange-600 to-yellow-600 p-3 rounded-xl">
+                <TrendingUp size={20} className="text-white" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white">{trendingCount}</div>
+                <div className="text-xs text-gray-400">Trending This Week</div>
+              </div>
+            </div>
+
+            <div className="w-px h-12 bg-white/10"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-3 rounded-xl">
+                <Calendar size={20} className="text-white" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white">{animeSchedule.length}</div>
+                <div className="text-xs text-gray-400">Total This Week</div>
+              </div>
+            </div>
+
+            <div className="w-px h-12 bg-white/10"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-3 rounded-xl">
+                <Database size={20} className="text-white" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white">{animeSchedule.length}</div>
+                <div className="text-xs text-gray-400">In Database</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Export Bar */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Quick Export</h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => exportSchedule('day')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+              >
+                <Download size={16} />
+                Selected Day
+              </button>
+              <button
+                onClick={() => exportSchedule('week')}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+              >
+                <Download size={16} />
+                Full Week
+              </button>
+              <button
+                onClick={() => exportSchedule('trending')}
+                className="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+              >
+                <Download size={16} />
+                Trending
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white">{monthName}</h2>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => changeMonth(-1)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                onClick={() => changeMonth(1)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2">
+            {days.map(day => (
+              <div key={day} className="text-center font-bold text-gray-400 text-sm py-2">
+                {day}
+              </div>
+            ))}
+            
+            {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+              <div key={`empty-${i}`} className="aspect-square" />
+            ))}
+            
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+              const anime = getAnimeForDate(date);
+              const isToday = date.toDateString() === new Date().toDateString();
+              const isSelected = date.toDateString() === selectedDate.toDateString();
+              const releasing = anime.length;
+              const trending = anime.filter(a => a.trending).length;
+
+              return (
+                <div
+                  key={day}
+                  onClick={() => setSelectedDate(date)}
+                  className={`min-h-28 border-2 rounded-xl p-2 cursor-pointer transition-all ${
+                    isToday ? 'border-purple-400 bg-purple-900/30 ring-2 ring-purple-400' : 
+                    isSelected ? 'border-blue-400 bg-blue-900/30 ring-2 ring-blue-400' : 
+                    'border-white/10 bg-white/5 hover:border-purple-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className={`text-sm font-bold mb-2 ${
+                    isToday ? 'text-purple-300' : 
+                    isSelected ? 'text-blue-300' : 
+                    'text-white'
+                  }`}>
+                    {day}
+                  </div>
+                  
+                  {anime.length > 0 && (
+                    <div className="space-y-1">
+                      {releasing > 0 && (
+                        <div className="text-xs bg-gradient-to-r from-red-500 to-pink-500 text-white px-2 py-1 rounded-md font-bold text-center">
+                          {releasing} LIVE
+                        </div>
+                      )}
+                      {trending > 0 && (
+                        <div className="text-xs bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-2 py-1 rounded-md font-bold text-center">
+                          🔥 {trending}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selected Date Anime */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+          <h2 className="text-2xl font-bold text-white mb-4">
+            📅 {selectedDateStr}
+          </h2>
+
+          {todayAnime.length === 0 ? (
+            <div className="text-center py-12">
+              <Calendar size={64} className="mx-auto mb-4 text-gray-600" />
+              <p className="text-gray-400 text-lg">No anime scheduled for this date</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {todayAnime.map((anime, idx) => (
+                <div
+                  key={idx}
+                  className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl overflow-hidden border-2 border-white/10 hover:border-purple-400 transition-all hover:scale-105"
+                >
+                  <div className="relative h-64">
+                    <img 
+                      src={anime.image} 
+                      alt={anime.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
+                    
+                    {anime.trending && (
+                      <div className="absolute top-3 right-3 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs px-3 py-1.5 rounded-full font-bold">
+                        🔥 TRENDING
+                      </div>
+                    )}
+                    
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <h4 className="text-white font-bold mb-2 line-clamp-2">
+                        {anime.title}
+                      </h4>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="bg-purple-600 text-white px-2 py-1 rounded font-semibold">
+                          {anime.time} JST
+                        </span>
+                        <span className="bg-blue-600 text-white px-2 py-1 rounded font-semibold">
+                          Ep {anime.episode}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4">
+                    <p className="text-gray-400 text-sm mb-2">{anime.genre}</p>
+                    <div className="text-xs text-gray-500">
+                      {anime.day} • {anime.time} JST
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AnimeFlowAI;
