@@ -23,41 +23,72 @@ export interface GeneratedPost {
   platform: 'instagram' | 'youtube' | 'tiktok' | 'all'
 }
 
+export type AIProvider = 'anthropic' | 'gemini'
+
 export class AIContentGenerator {
-  private apiKey: string | null = null
-  private model = 'claude-sonnet-4-20250514'
-  private apiUrl = 'https://api.anthropic.com/v1/messages'
+  private anthropicApiKey: string | null = null
+  private geminiApiKey: string | null = null
+  private anthropicModel = 'claude-sonnet-4-20250514'
+  private geminiModel = 'gemini-1.5-flash'
+  private anthropicApiUrl = 'https://api.anthropic.com/v1/messages'
+  private geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models'
+  private lastUsedProvider: AIProvider | null = null
 
   constructor() {
-    this.apiKey = localStorage.getItem('anthropic_api_key')
+    this.anthropicApiKey = localStorage.getItem('anthropic_api_key')
+    this.geminiApiKey = localStorage.getItem('gemini_api_key')
   }
 
-  // Check if API is configured
+  // Refresh API keys from localStorage
+  refreshKeys(): void {
+    this.anthropicApiKey = localStorage.getItem('anthropic_api_key')
+    this.geminiApiKey = localStorage.getItem('gemini_api_key')
+  }
+
+  // Check if any API is configured
   isConfigured(): boolean {
-    return !!this.apiKey
+    return !!this.anthropicApiKey || !!this.geminiApiKey
   }
 
-  // Update API key
-  setApiKey(key: string): void {
-    this.apiKey = key
+  // Get which provider is available
+  getAvailableProvider(): AIProvider | null {
+    if (this.anthropicApiKey) return 'anthropic'
+    if (this.geminiApiKey) return 'gemini'
+    return null
+  }
+
+  // Get last used provider
+  getLastUsedProvider(): AIProvider | null {
+    return this.lastUsedProvider
+  }
+
+  // Update Anthropic API key
+  setAnthropicApiKey(key: string): void {
+    this.anthropicApiKey = key
     localStorage.setItem('anthropic_api_key', key)
   }
 
-  // Make API request to Claude
+  // Update Gemini API key
+  setGeminiApiKey(key: string): void {
+    this.geminiApiKey = key
+    localStorage.setItem('gemini_api_key', key)
+  }
+
+  // Make API request to Claude (Anthropic)
   private async callClaudeAPI(prompt: string, maxTokens: number = 1500): Promise<string> {
-    if (!this.apiKey) {
-      throw new Error('Anthropic API key not configured. Please add it in Settings.')
+    if (!this.anthropicApiKey) {
+      throw new Error('Anthropic API key not configured')
     }
 
-    const response = await fetch(this.apiUrl, {
+    const response = await fetch(this.anthropicApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
+        'x-api-key': this.anthropicApiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: this.model,
+        model: this.anthropicModel,
         max_tokens: maxTokens,
         messages: [{
           role: 'user',
@@ -68,11 +99,83 @@ export class AIContentGenerator {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(`API Error: ${response.status} - ${error.error?.message || 'Unknown error'}`)
+      throw new Error(`Anthropic API Error: ${response.status} - ${error.error?.message || 'Unknown error'}`)
     }
 
     const data = await response.json()
     return data.content[0].text
+  }
+
+  // Make API request to Gemini (Google)
+  private async callGeminiAPI(prompt: string, maxTokens: number = 1500): Promise<string> {
+    if (!this.geminiApiKey) {
+      throw new Error('Gemini API key not configured')
+    }
+
+    const url = `${this.geminiApiUrl}/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: 0.9
+        }
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(`Gemini API Error: ${response.status} - ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+
+    // Extract text from Gemini response
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+      return data.candidates[0].content.parts[0].text
+    }
+
+    throw new Error('Invalid Gemini response format')
+  }
+
+  // Main method to call AI with automatic fallback
+  private async callAI(prompt: string, maxTokens: number = 1500): Promise<string> {
+    // Try Anthropic first if available
+    if (this.anthropicApiKey) {
+      try {
+        console.log('Attempting Anthropic API...')
+        const result = await this.callClaudeAPI(prompt, maxTokens)
+        this.lastUsedProvider = 'anthropic'
+        return result
+      } catch (error) {
+        console.warn('Anthropic API failed:', error)
+        // Fall through to try Gemini
+      }
+    }
+
+    // Try Gemini as fallback or if Anthropic not available
+    if (this.geminiApiKey) {
+      try {
+        console.log('Attempting Gemini API (fallback)...')
+        const result = await this.callGeminiAPI(prompt, maxTokens)
+        this.lastUsedProvider = 'gemini'
+        return result
+      } catch (error) {
+        console.error('Gemini API failed:', error)
+        throw new Error(`All AI providers failed. Last error: ${error}`)
+      }
+    }
+
+    throw new Error('No AI API keys configured. Please add either Anthropic or Gemini API key in Settings.')
   }
 
   // Generate Instagram Reel script
@@ -109,7 +212,7 @@ Please format your response EXACTLY as follows:
 [HASHTAGS]
 <list 15-20 relevant hashtags starting with #>`
 
-    const response = await this.callClaudeAPI(prompt)
+    const response = await this.callAI(prompt)
     return this.parseReelScript(response)
   }
 
@@ -154,7 +257,7 @@ Requirements:
 
 Generate ONLY the image prompt, no explanations or additional text. Start directly with the prompt.`
 
-    const response = await this.callClaudeAPI(prompt, 500)
+    const response = await this.callAI(prompt, 500)
     return response.trim()
   }
 
@@ -183,7 +286,7 @@ Visual: <brief description of the slide visual/design>
 
 Continue for all 10 slides.`
 
-    const response = await this.callClaudeAPI(prompt, 2000)
+    const response = await this.callAI(prompt, 2000)
     return this.parseCarouselSlides(response)
   }
 
@@ -237,7 +340,7 @@ HASHTAGS:
 IMAGE_PROMPT:
 <brief Midjourney prompt for a post image>`
 
-    const response = await this.callClaudeAPI(prompt, 800)
+    const response = await this.callAI(prompt, 800)
 
     const captionMatch = response.match(/CAPTION:\s*([\s\S]*?)(?=HASHTAGS:|$)/i)
     const hashtagsMatch = response.match(/HASHTAGS:\s*([\s\S]*?)(?=IMAGE_PROMPT:|$)/i)
@@ -285,7 +388,7 @@ Format as:
 [TAGS]
 <comma-separated tags for YouTube>`
 
-    const response = await this.callClaudeAPI(prompt, 1200)
+    const response = await this.callAI(prompt, 1200)
 
     // Reuse reel parser with modifications
     const parsed = this.parseReelScript(response)
@@ -325,7 +428,7 @@ Format as:
 [HASHTAGS]
 <TikTok-optimized hashtags>`
 
-    const response = await this.callClaudeAPI(prompt, 1000)
+    const response = await this.callAI(prompt, 1000)
     return this.parseReelScript(response)
   }
 
@@ -405,6 +508,20 @@ Format as:
     }
 
     return results
+  }
+
+  // Test API connection
+  async testConnection(provider: AIProvider): Promise<boolean> {
+    try {
+      if (provider === 'anthropic') {
+        await this.callClaudeAPI('Say "ok"', 10)
+      } else {
+        await this.callGeminiAPI('Say "ok"', 10)
+      }
+      return true
+    } catch {
+      return false
+    }
   }
 }
 

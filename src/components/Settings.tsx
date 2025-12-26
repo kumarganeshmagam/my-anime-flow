@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import {
   X, Key, Save, CheckCircle, AlertCircle, Eye, EyeOff,
-  Database, Zap, ExternalLink, Shield
+  Database, Zap, ExternalLink, Shield, Sparkles
 } from 'lucide-react'
+import { contentGenerator } from '../services/contentGenerator'
 
 interface SettingsProps {
   onClose: () => void
@@ -10,6 +11,7 @@ interface SettingsProps {
 
 interface SettingsState {
   anthropicApiKey: string
+  geminiApiKey: string
   malClientId: string
   defaultPlatform: 'instagram' | 'youtube' | 'tiktok' | 'all'
   contentTone: 'casual' | 'professional' | 'hype'
@@ -17,9 +19,12 @@ interface SettingsState {
   notificationsEnabled: boolean
 }
 
+type ApiStatus = 'untested' | 'success' | 'error'
+
 const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [settings, setSettings] = useState<SettingsState>({
     anthropicApiKey: '',
+    geminiApiKey: '',
     malClientId: '',
     defaultPlatform: 'all',
     contentTone: 'hype',
@@ -28,16 +33,20 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   })
 
   const [showApiKey, setShowApiKey] = useState(false)
+  const [showGeminiKey, setShowGeminiKey] = useState(false)
   const [showMalKey, setShowMalKey] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [testingApi, setTestingApi] = useState(false)
-  const [apiStatus, setApiStatus] = useState<'untested' | 'success' | 'error'>('untested')
+  const [testingAnthropicApi, setTestingAnthropicApi] = useState(false)
+  const [testingGeminiApi, setTestingGeminiApi] = useState(false)
+  const [anthropicApiStatus, setAnthropicApiStatus] = useState<ApiStatus>('untested')
+  const [geminiApiStatus, setGeminiApiStatus] = useState<ApiStatus>('untested')
 
   // Load settings on mount
   useEffect(() => {
     const savedSettings: Partial<SettingsState> = {}
 
     savedSettings.anthropicApiKey = localStorage.getItem('anthropic_api_key') || ''
+    savedSettings.geminiApiKey = localStorage.getItem('gemini_api_key') || ''
     savedSettings.malClientId = localStorage.getItem('mal_client_id') || ''
     savedSettings.defaultPlatform = (localStorage.getItem('default_platform') as SettingsState['defaultPlatform']) || 'all'
     savedSettings.contentTone = (localStorage.getItem('content_tone') as SettingsState['contentTone']) || 'hype'
@@ -46,34 +55,41 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
 
     setSettings(prev => ({ ...prev, ...savedSettings }))
 
-    // Check if API key exists
+    // Check if API keys exist
     if (savedSettings.anthropicApiKey) {
-      setApiStatus('untested')
+      setAnthropicApiStatus('untested')
+    }
+    if (savedSettings.geminiApiKey) {
+      setGeminiApiStatus('untested')
     }
   }, [])
 
   // Save settings
   const handleSave = () => {
     localStorage.setItem('anthropic_api_key', settings.anthropicApiKey)
+    localStorage.setItem('gemini_api_key', settings.geminiApiKey)
     localStorage.setItem('mal_client_id', settings.malClientId)
     localStorage.setItem('default_platform', settings.defaultPlatform)
     localStorage.setItem('content_tone', settings.contentTone)
     localStorage.setItem('auto_schedule', String(settings.autoScheduleEnabled))
     localStorage.setItem('notifications', String(settings.notificationsEnabled))
 
+    // Refresh content generator keys
+    contentGenerator.refreshKeys()
+
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
   // Test Anthropic API connection
-  const testApiConnection = async () => {
+  const testAnthropicConnection = async () => {
     if (!settings.anthropicApiKey) {
-      setApiStatus('error')
+      setAnthropicApiStatus('error')
       return
     }
 
-    setTestingApi(true)
-    setApiStatus('untested')
+    setTestingAnthropicApi(true)
+    setAnthropicApiStatus('untested')
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -91,14 +107,70 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
       })
 
       if (response.ok) {
-        setApiStatus('success')
+        setAnthropicApiStatus('success')
       } else {
-        setApiStatus('error')
+        setAnthropicApiStatus('error')
       }
     } catch {
-      setApiStatus('error')
+      setAnthropicApiStatus('error')
     } finally {
-      setTestingApi(false)
+      setTestingAnthropicApi(false)
+    }
+  }
+
+  // Test Gemini API connection
+  const testGeminiConnection = async () => {
+    if (!settings.geminiApiKey) {
+      setGeminiApiStatus('error')
+      return
+    }
+
+    setTestingGeminiApi(true)
+    setGeminiApiStatus('untested')
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: 'Say "ok"' }]
+            }],
+            generationConfig: {
+              maxOutputTokens: 10
+            }
+          })
+        }
+      )
+
+      if (response.ok) {
+        setGeminiApiStatus('success')
+      } else {
+        setGeminiApiStatus('error')
+      }
+    } catch {
+      setGeminiApiStatus('error')
+    } finally {
+      setTestingGeminiApi(false)
+    }
+  }
+
+  // Get status icon
+  const getStatusIcon = (status: ApiStatus, testing: boolean) => {
+    if (testing) {
+      return <span className="animate-spin">...</span>
+    }
+    switch (status) {
+      case 'success':
+        return <CheckCircle size={18} className="text-green-400" />
+      case 'error':
+        return <AlertCircle size={18} className="text-red-400" />
+      default:
+        return <Zap size={18} />
     }
   }
 
@@ -122,18 +194,24 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
         <div className="space-y-6">
           {/* API Keys Section */}
           <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
               <Key className="text-purple-400" />
-              API Keys
+              AI API Keys
             </h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Add at least one API key. Anthropic (Claude) is primary, Gemini is used as fallback.
+            </p>
 
-            {/* Anthropic API Key */}
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Anthropic API Key
-                  <span className="text-red-400 ml-1">*</span>
-                </label>
+              {/* Anthropic API Key */}
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  <label className="text-sm font-medium text-gray-300">
+                    Anthropic API Key (Claude)
+                  </label>
+                  <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">PRIMARY</span>
+                </div>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
@@ -141,7 +219,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                       value={settings.anthropicApiKey}
                       onChange={(e) => setSettings(prev => ({ ...prev, anthropicApiKey: e.target.value }))}
                       placeholder="sk-ant-..."
-                      className="w-full bg-slate-800 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 pr-10"
+                      className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 pr-10"
                     />
                     <button
                       onClick={() => setShowApiKey(!showApiKey)}
@@ -151,33 +229,83 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                     </button>
                   </div>
                   <button
-                    onClick={testApiConnection}
-                    disabled={testingApi || !settings.anthropicApiKey}
+                    onClick={testAnthropicConnection}
+                    disabled={testingAnthropicApi || !settings.anthropicApiKey}
                     className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
                   >
-                    {testingApi ? (
-                      <span className="animate-spin">...</span>
-                    ) : apiStatus === 'success' ? (
-                      <CheckCircle size={18} className="text-green-400" />
-                    ) : apiStatus === 'error' ? (
-                      <AlertCircle size={18} className="text-red-400" />
-                    ) : (
-                      <Zap size={18} />
-                    )}
+                    {getStatusIcon(anthropicApiStatus, testingAnthropicApi)}
                     Test
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Required for AI content generation.{' '}
+                  Best quality AI content.{' '}
                   <a
                     href="https://console.anthropic.com/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-purple-400 hover:text-purple-300 inline-flex items-center gap-1"
                   >
-                    Get your key <ExternalLink size={12} />
+                    Get key <ExternalLink size={12} />
                   </a>
                 </p>
+              </div>
+
+              {/* Gemini API Key */}
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <label className="text-sm font-medium text-gray-300">
+                    Google Gemini API Key
+                  </label>
+                  <span className="text-xs text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded">FALLBACK</span>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showGeminiKey ? 'text' : 'password'}
+                      value={settings.geminiApiKey}
+                      onChange={(e) => setSettings(prev => ({ ...prev, geminiApiKey: e.target.value }))}
+                      placeholder="AIza..."
+                      className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-10"
+                    />
+                    <button
+                      onClick={() => setShowGeminiKey(!showGeminiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      {showGeminiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={testGeminiConnection}
+                    disabled={testingGeminiApi || !settings.geminiApiKey}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
+                  >
+                    {getStatusIcon(geminiApiStatus, testingGeminiApi)}
+                    Test
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Free tier available. Used when Anthropic fails.{' '}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+                  >
+                    Get key <ExternalLink size={12} />
+                  </a>
+                </p>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/20 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="text-purple-400 flex-shrink-0 mt-0.5" size={16} />
+                  <div className="text-xs text-gray-300">
+                    <strong>How fallback works:</strong> The system tries Anthropic first. If it fails (rate limit, error, etc.),
+                    Gemini is automatically used. You can configure just one or both.
+                  </div>
+                </div>
               </div>
 
               {/* MAL Client ID */}
